@@ -21,7 +21,7 @@ const getRandomInt = (min, max) => Math.floor(Math.random() * (Math.ceil(max) - 
 const getRandomNum = (min, max, precision?: number) =>
     parseFloat((Math.random() * (max - min) + min).toPrecision(precision ? precision : 1));
 
-const trimName = (name) =>
+const trimName = name =>
     name
         .trim()
         .replace(/[\W\s]+/g, "")
@@ -52,7 +52,7 @@ const getHighlightGroup = (groupElem?) => {
         let name = groupElem.querySelector(".group_label").value;
         let built_in = groupElem.querySelector(".group_label").hasAttribute("readonly");
         let css = groupElem.querySelector(".group_css textarea").value;
-        let users = [...groupElem.querySelector(".group_select select").options].map((x) => x.text);
+        let users = [...groupElem.querySelector(".group_select select").options].map(x => x.text);
         return { name, enabled, built_in, css, users };
     }
     return {};
@@ -64,12 +64,12 @@ const newHighlightGroup = (name?, css?, username?) => {
         enabled: true,
         name: name && name.length > 0 ? name : `New Group ${getRandomInt(1, 999999)}`,
         css: css && css.length > 0 ? css : `color: ${randomHsl()} !important;`,
-        users: username && username.length > 0 ? [username] : [],
+        users: username && username.length > 0 ? [username] : []
     };
 };
 
 let debouncedUpdate = null;
-const delayedTextUpdate = (e) => {
+const delayedTextUpdate = e => {
     if (debouncedUpdate) clearTimeout(debouncedUpdate);
     debouncedUpdate = setTimeout(async () => {
         let groupElem = e.target.closest("#highlight_group");
@@ -131,7 +131,7 @@ const addHighlightGroup = (e: Event, group?) => {
         select.appendChild(option);
     }
     // handle Add, Remove, Remove Group, Toggle, and Text Changed states
-    groupElem.querySelector("#option_add").addEventListener("click", async (e) => {
+    groupElem.querySelector("#option_add").addEventListener("click", async e => {
         const this_node = <HTMLElement>e.target;
         const this_input = this_node.parentNode.parentNode;
         let optionContainer = this_node.parentNode.parentNode.querySelector(".group_select > select");
@@ -151,7 +151,7 @@ const addHighlightGroup = (e: Event, group?) => {
         this_username = "";
         optionContainer.appendChild(option);
     });
-    groupElem.querySelector("#option_del").addEventListener("click", async (e) => {
+    groupElem.querySelector("#option_del").addEventListener("click", async e => {
         let groupElem = (<HTMLElement>e.target).closest("#highlight_group");
         let groupName = (<HTMLInputElement>groupElem.querySelector(".group_label")).value;
         let usersSelect = groupElem.querySelector("select");
@@ -160,19 +160,19 @@ const addHighlightGroup = (e: Event, group?) => {
         let updatedGroup = getHighlightGroup(groupElem);
         await settings.setHighlightGroup(groupName, updatedGroup);
     });
-    groupElem.querySelector("#remove_group").addEventListener("click", (e) => {
+    groupElem.querySelector("#remove_group").addEventListener("click", e => {
         let groupElem = (<HTMLElement>e.target).closest("#highlight_group");
         let groupsContainer = (<HTMLElement>e.target).closest("#highlight_groups");
         groupsContainer.removeChild(groupElem);
         getHighlightGroups();
     });
-    groupElem.querySelector("input[type='checkbox']").addEventListener("click", async (e) => {
+    groupElem.querySelector("input[type='checkbox']").addEventListener("click", async e => {
         let groupElem = (<HTMLElement>e.target).closest("#highlight_group");
         let groupName = (<HTMLInputElement>groupElem.querySelector(".group_label")).value;
         let updatedGroup = getHighlightGroup(groupElem);
         await settings.setHighlightGroup(groupName, updatedGroup);
     });
-    groupElem.querySelector("select").addEventListener("change", (e) => {
+    groupElem.querySelector("select").addEventListener("change", e => {
         let groupElem = (<HTMLElement>e.target).closest("#highlight_group");
         let selected = (<HTMLSelectElement>e.target).options.selectedIndex;
         let removeBtn = groupElem.querySelector("#option_del");
@@ -180,7 +180,7 @@ const addHighlightGroup = (e: Event, group?) => {
         else if (selected === -1) removeBtn.setAttribute("disabled", "");
     });
     // let the user switch colors by clicking the preview splotch
-    groupElem.querySelector(".test_css span").addEventListener("click", (e) => {
+    groupElem.querySelector(".test_css span").addEventListener("click", e => {
         let group = (<HTMLElement>e.target).closest("#highlight_group");
         let styleField = group.querySelector(".group_css textarea");
         let firstColor;
@@ -210,38 +210,38 @@ const addHighlightGroup = (e: Event, group?) => {
  * Notifications Support
  */
 
-const logInForNotifications = (notificationuid) => {
+const logInForNotifications = notificationuid => {
     return common
         .fetchSafe({
             url: "https://winchatty.com/v2/notifications/registerNotifierClient",
             fetchOpts: {
                 method: "POST",
                 headers: { "Content-type": "application/x-www-form-urlencoded" },
-                body: encodeURI(`id=${notificationuid}&name=Chrome Shack (${new Date()})`),
-            },
+                body: encodeURI(`id=${notificationuid}&name=Chrome Shack (${new Date()})`)
+            }
         })
         .then(() => {
             //console.log("Response from register client " + res.responseText);
             browser.tabs
                 .query({
-                    url: "https://winchatty.com/v2/notifications/ui/login*",
+                    url: "https://winchatty.com/v2/notifications/ui/login*"
                 })
-                .then((tabs) => {
+                .then(tabs => {
                     if (tabs.length === 0) {
                         browser.tabs.create({
-                            url: `https://winchatty.com/v2/notifications/ui/login?clientId=${notificationuid}`,
+                            url: `https://winchatty.com/v2/notifications/ui/login?clientId=${notificationuid}`
                         });
                     } else {
                         //Since they requested, we'll open the tab and make sure they're at the correct url.
                         browser.tabs.update(tabs[0].tabId, {
                             active: true,
                             highlighted: true,
-                            url: `https://winchatty.com/v2/notifications/ui/login?clientId=${notificationuid}`,
+                            url: `https://winchatty.com/v2/notifications/ui/login?clientId=${notificationuid}`
                         });
                     }
                 });
         })
-        .catch((err) => {
+        .catch(err => {
             console.log(err);
         });
 };
@@ -253,7 +253,7 @@ const updateNotificationOptions = async () => {
         let uid = await settings.getSetting("notificationuid");
         if (!uid) {
             let json: NotificationRegister = await common.fetchSafe({
-                url: "https://winchatty.com/v2/notifications/generateId",
+                url: "https://winchatty.com/v2/notifications/generateId"
             });
             let notificationUID = json.id;
             if (notificationUID) {
@@ -294,7 +294,7 @@ const showUserFilters = async () => {
     usersLst.addEventListener("change", filterOptionsChanged);
 };
 
-const filterOptionsChanged = (e) => {
+const filterOptionsChanged = e => {
     let filterElem = e.target.closest("#custom_user_filters_settings");
     let selected = (<HTMLSelectElement>document.getElementById("filtered_users")).options.selectedIndex;
     let removeBtn = filterElem.querySelector("#remove_user_filter_btn");
@@ -305,13 +305,13 @@ const filterOptionsChanged = (e) => {
 const getUserFilters = async () => {
     // serialize user filters to extension storage
     let usersLst = <HTMLSelectElement>document.getElementById("filtered_users");
-    let users = [...usersLst.options].map((x) => x.text);
+    let users = [...usersLst.options].map(x => x.text);
     let fullpostHider = <HTMLInputElement>document.getElementById("cuf_hide_fullposts");
     if (fullpostHider) await settings.setSetting(fullpostHider.id, fullpostHider.checked);
     return await settings.setSetting("user_filters", users);
 };
 
-const addUserFilter = async (e) => {
+const addUserFilter = async e => {
     let username = <HTMLInputElement>document.getElementById("new_user_filter_text");
     let usersLst = document.getElementById("filtered_users");
     let filtersHas = await settings.filtersContains(username.value);
@@ -328,7 +328,7 @@ const addUserFilter = async (e) => {
     await getUserFilters();
 };
 
-const removeUserFilter = async (e) => {
+const removeUserFilter = async e => {
     let selectElem = <HTMLSelectElement>document.getElementById("filtered_users");
     let removeBtnElem = document.getElementById("remove_user_filter_btn");
     let selectedOptions = [...selectElem.selectedOptions];
@@ -348,7 +348,7 @@ const getEnabledScripts = async () => {
         ...document.querySelectorAll(`
         input[type='checkbox'].script_check,
         input[type='checkbox'].suboption
-    `),
+    `)
     ];
     for (let checkbox of checkboxes) {
         let _checkbox = <HTMLInputElement>checkbox;
@@ -372,7 +372,7 @@ const loadOptions = async () => {
         ...document.querySelectorAll(`
         input[type='checkbox'].script_check,
         input[type='checkbox'].suboption
-    `),
+    `)
     ];
     for (let script of scripts) {
         for (let checkbox of checkboxes) {
@@ -394,14 +394,14 @@ const loadOptions = async () => {
     }
 };
 
-const saveOptions = async (e) => {
+const saveOptions = async e => {
     if (e && e.target.id !== "clear_settings") {
         await getEnabledScripts();
         await loadOptions();
     }
 };
 
-const clearSettings = (e) =>
+const clearSettings = e =>
     settings
         .resetSettings()
         .then(loadOptions)
@@ -415,9 +415,9 @@ const clearSettings = (e) =>
 /*
  *  Support import/export of the settings store
  */
-const exportSettings = (settingsField) => {
+const exportSettings = settingsField => {
     if (settingsField) {
-        settings.getSettings().then(async (settings) => {
+        settings.getSettings().then(async settings => {
             // strip unnecessary cached keys
             const disallowed = [
                 "highlight_groups",
@@ -425,16 +425,16 @@ const exportSettings = (settingsField) => {
                 "chatty_news_lastfetchdata",
                 "chatty_news_lastfetchtime",
                 "last_highlight_time",
-                "new_comment_highlighter_last_id",
+                "new_comment_highlighter_last_id"
             ];
-            const sanitizedGroups = settings.highlight_groups.filter((x) => !x.built_in) || [];
+            const sanitizedGroups = settings.highlight_groups.filter(x => !x.built_in) || [];
             const sanitizedSettings = common.objConditionalFilter(disallowed, settings);
             const exportable =
                 sanitizedGroups.length > 0
                     ? JSON.stringify({
-                          ...sanitizedSettings,
-                          highlight_groups: sanitizedGroups,
-                      })
+                        ...sanitizedSettings,
+                        highlight_groups: sanitizedGroups
+                    })
                     : JSON.stringify(sanitizedSettings);
             settingsField.value = exportable;
             handleImportExportField(); // force a field update
@@ -445,18 +445,18 @@ const exportSettings = (settingsField) => {
     }
 };
 
-const importSettings = (settingsField) => {
+const importSettings = settingsField => {
     try {
         let parsedSettings = settingsField && JSON.parse(common.superTrim(settingsField.value));
         let defaults = { ...settings.DefaultSettings };
         // combine default and parsed highlight groups intelligently
         let reducedGroups = parsedSettings.highlight_groups
             ? parsedSettings.highlight_groups.reduce((acc, v) => {
-                  let foundIdx = acc.findIndex((y) => y.name === v.name);
-                  if (foundIdx > -1) acc[foundIdx] = v;
-                  else acc.push(v);
-                  return acc;
-              }, defaults.highlight_groups)
+                let foundIdx = acc.findIndex(y => y.name === v.name);
+                if (foundIdx > -1) acc[foundIdx] = v;
+                else acc.push(v);
+                return acc;
+            }, defaults.highlight_groups)
             : defaults.highlight_groups;
         parsedSettings.highlight_groups = reducedGroups;
         let combinedSettings = { ...defaults, ...parsedSettings };
@@ -492,7 +492,7 @@ const handleImportExportSettings = () => {
     else if (importExportField) exportSettings(importExportField);
 };
 
-const parseSettingsString = (string) => {
+const parseSettingsString = string => {
     // rudimentary way of checking if a settings string is a valid JSON object
     try {
         let parsed = string && string.length > 0 && JSON.parse(common.superTrim(string));
@@ -515,7 +515,7 @@ const trackChanges = () => {
         ...document.querySelectorAll(`
         input[type='checkbox'].script_check,
         input[type='checkbox'].suboption
-    `),
+    `)
     ];
     for (let checkbox of checkboxes || []) {
         checkbox.removeEventListener("change", saveOptions);
@@ -532,7 +532,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("clear_settings").addEventListener("click", clearSettings);
     document.getElementById("rls_notes").addEventListener("click", () => {
         browser.tabs.create({
-            url: browser.runtime.getURL("release_notes.html"),
+            url: browser.runtime.getURL("release_notes.html")
         });
         return false;
     });
