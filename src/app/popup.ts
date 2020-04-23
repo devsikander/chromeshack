@@ -6,16 +6,37 @@ import {
     superTrim,
     fetchSafe,
     elementMatches,
-    objConditionalFilter,
     objContainsProperty,
     safeInnerHTML,
 } from "./core/common";
-import * as settings from "./core/settings";
+import {
+    getEnabled,
+    getSetting,
+    getSettings,
+    setSetting,
+    setSettings,
+    resetSettings,
+    filtersContains,
+    getEnabledSuboptions,
+    setHighlightGroup,
+    highlightGroupContains,
+    addHighlightUser,
+    DefaultSettings,
+} from "./core/settings";
+import { ChangeEvent } from "react";
 
-import "../styles/popup.css";
+require("../styles/popup.css");
 
 interface NotificationRegister {
-    id?: number;
+    id?: string;
+}
+
+interface HighlightGroup {
+    name: string;
+    enabled: boolean;
+    built_in?: boolean;
+    css: string;
+    users: string[];
 }
 
 /*
@@ -25,12 +46,13 @@ interface NotificationRegister {
 // https://stackoverflow.com/a/25873123
 const randomHsl = () => `hsla(${getRandomNum(0, 360)}, ${getRandomNum(25, 100)}%, ${getRandomNum(35, 60)}%, 1)`;
 
-const getRandomInt = (min, max) => Math.floor(Math.random() * (Math.ceil(max) - Math.floor(min))) + Math.ceil(min);
+const getRandomInt = (min: number, max: number) =>
+    Math.floor(Math.random() * (Math.ceil(max) - Math.floor(min))) + Math.ceil(min);
 
-const getRandomNum = (min, max, precision?: number) =>
+const getRandomNum = (min: number, max: number, precision?: number) =>
     parseFloat((Math.random() * (max - min) + min).toPrecision(precision ? precision : 1));
 
-const trimName = (name) =>
+const trimName = (name: string) =>
     name
         .trim()
         .replace(/[\W\s]+/g, "")
@@ -39,7 +61,7 @@ const trimName = (name) =>
 const showHighlightGroups = async () => {
     const highlightGroups = document.getElementById("highlight_groups");
     removeChildren(highlightGroups);
-    const groups = await settings.getSetting("highlight_groups");
+    const groups = await getSetting("highlight_groups");
     for (const group of groups || []) addHighlightGroup(null, group);
 };
 
@@ -51,23 +73,25 @@ const getHighlightGroups = async () => {
         const record = getHighlightGroup(group);
         if (!isEmptyObj(record)) highlightRecords.push(record);
     }
-    if (highlightRecords.length > 0) return await settings.setSetting("highlight_groups", highlightRecords);
+    if (highlightRecords.length > 0) return await setSetting("highlight_groups", highlightRecords);
 };
 
-const getHighlightGroup = (groupElem?) => {
+const getHighlightGroup = (groupElem?: Element) => {
     // serialize a highlight group
     if (groupElem) {
-        const enabled = groupElem.querySelector(".group_header input[type='checkbox']").checked;
-        const name = groupElem.querySelector(".group_label").value;
+        const enabled = (groupElem.querySelector(".group_header input[type='checkbox']") as HTMLInputElement).checked;
+        const name = (groupElem.querySelector(".group_label") as HTMLInputElement).value;
         const built_in = groupElem.querySelector(".group_label").hasAttribute("readonly");
-        const css = groupElem.querySelector(".group_css textarea").value;
-        const users = [...groupElem.querySelector(".group_select select").options].map((x) => x.text);
+        const css = (groupElem.querySelector(".group_css textarea") as HTMLInputElement).value;
+        const users = [...(groupElem.querySelector(".group_select select") as HTMLSelectElement).options].map(
+            (x) => x.text,
+        );
         return { name, enabled, built_in, css, users };
     }
     return {};
 };
 
-const newHighlightGroup = (name?, css?, username?) => {
+const newHighlightGroup = (name?: string, css?: string, username?: string) => {
     // return a new group with a random color as its default css
     return {
         enabled: true,
@@ -78,22 +102,22 @@ const newHighlightGroup = (name?, css?, username?) => {
 };
 
 let debouncedUpdate = null;
-const delayedTextUpdate = (e) => {
+const delayedTextUpdate = (e: Event) => {
     if (debouncedUpdate) clearTimeout(debouncedUpdate);
     debouncedUpdate = setTimeout(async () => {
-        const groupElem = e.target.closest("#highlight_group");
-        const groupLabel = groupElem.querySelector(".group_label");
+        const groupElem = (e.target as Element).closest("#highlight_group") as HTMLInputElement;
+        const groupLabel = groupElem.querySelector(".group_label") as HTMLLabelElement;
         const realGroupName = groupLabel.dataset.name;
         const updatedGroup = getHighlightGroup(groupElem);
-        const updatedCSSField = groupElem.querySelector(".group_css textarea");
+        const updatedCSSField = groupElem.querySelector(".group_css textarea") as HTMLInputElement;
         const cssSplotch = groupElem.querySelector(".test_css span");
         if (updatedCSSField.value.length > 0) cssSplotch.setAttribute("style", superTrim(updatedCSSField.value));
-        await settings.setHighlightGroup(realGroupName, updatedGroup);
+        await setHighlightGroup(realGroupName, updatedGroup);
         groupLabel.dataset.name = updatedGroup.name;
     }, 500);
 };
 
-const addHighlightGroup = (e: Event, group?) => {
+const addHighlightGroup = (e: Event, group?: HighlightGroup) => {
     if (e) e.preventDefault();
     if (!group) group = newHighlightGroup();
     const groupElem = document.createElement("div");
@@ -142,19 +166,19 @@ const addHighlightGroup = (e: Event, group?) => {
     }
     // handle Add, Remove, Remove Group, Toggle, and Text Changed states
     groupElem.querySelector("#option_add").addEventListener("click", async (e) => {
-        const this_node = <HTMLElement>e.target;
+        const this_node = e.target as HTMLElement;
         const this_input = this_node.parentNode.parentNode;
         const optionContainer = this_node.parentNode.parentNode.querySelector(".group_select > select");
         const username = this_node.parentNode.querySelector(".group_option_textinput");
         const groupName = (<HTMLInputElement>this_input.querySelector(".group_label")).value;
         let this_username = (<HTMLInputElement>username).value;
-        const groupHas = await settings.highlightGroupContains(groupName, this_username);
+        const groupHas = await highlightGroupContains(groupName, this_username);
         if (groupHas) {
             alert("Highlight groups cannot contain duplicates!");
             this_username = "";
             return;
         }
-        await settings.addHighlightUser(groupName, this_username);
+        await addHighlightUser(groupName, this_username);
         const option = document.createElement("option");
         option.setAttribute("value", this_username);
         option.innerText = this_username;
@@ -168,7 +192,7 @@ const addHighlightGroup = (e: Event, group?) => {
         for (const option of [...usersSelect.selectedOptions]) option.parentNode.removeChild(option);
 
         const updatedGroup = getHighlightGroup(groupElem);
-        await settings.setHighlightGroup(groupName, updatedGroup);
+        await setHighlightGroup(groupName, updatedGroup);
     });
     groupElem.querySelector("#remove_group").addEventListener("click", (e) => {
         const groupElem = (<HTMLElement>e.target).closest("#highlight_group");
@@ -180,7 +204,7 @@ const addHighlightGroup = (e: Event, group?) => {
         const groupElem = (<HTMLElement>e.target).closest("#highlight_group");
         const groupName = (<HTMLInputElement>groupElem.querySelector(".group_label")).value;
         const updatedGroup = getHighlightGroup(groupElem);
-        await settings.setHighlightGroup(groupName, updatedGroup);
+        await setHighlightGroup(groupName, updatedGroup);
     });
     groupElem.querySelector("select").addEventListener("change", (e) => {
         const groupElem = (<HTMLElement>e.target).closest("#highlight_group");
@@ -220,7 +244,7 @@ const addHighlightGroup = (e: Event, group?) => {
  * Notifications Support
  */
 
-const logInForNotifications = (notificationuid) => {
+const logInForNotifications = (notificationuid: string) => {
     return fetchSafe({
         url: "https://winchatty.com/v2/notifications/registerNotifierClient",
         fetchOpts: {
@@ -257,22 +281,22 @@ const logInForNotifications = (notificationuid) => {
 
 const updateNotificationOptions = async () => {
     //Log the user in for notifications.
-    const notifications = await settings.getEnabled("enable_notifications");
+    const notifications = await getEnabled("enable_notifications");
     if (notifications) {
-        const uid = await settings.getSetting("notificationuid");
+        const uid = await getSetting("notificationuid");
         if (!uid) {
             const json: NotificationRegister = await fetchSafe({
                 url: "https://winchatty.com/v2/notifications/generateId",
             });
             const notificationUID = json.id;
             if (notificationUID) {
-                await settings.setSetting("notificationuid", notificationUID);
+                await setSetting("notificationuid", notificationUID);
                 logInForNotifications(notificationUID);
             }
         } else {
             //console.log("Notifications already set up using an id of " + notificationUID);
         }
-    } else await settings.setSetting("notificationuid", "");
+    } else await setSetting("notificationuid", "");
     //TODO: Log them out because they're disabling it. This requires a username and password.  For now we'll just kill the UID and they can remove it manually because... meh whatever.
 };
 
@@ -280,8 +304,8 @@ const updateNotificationOptions = async () => {
  * Custom User Filters Support
  */
 const showUserFilters = async () => {
-    const filters = await settings.getSetting("user_filters");
-    const usersLst = document.getElementById("filtered_users");
+    const filters = await getSetting("user_filters");
+    const usersLst = document.getElementById("filtered_users") as HTMLSelectElement;
     removeChildren(usersLst);
 
     for (const filter of filters || []) {
@@ -301,8 +325,8 @@ const showUserFilters = async () => {
     usersLst.addEventListener("change", filterOptionsChanged);
 };
 
-const filterOptionsChanged = (e) => {
-    const filterElem = e.target.closest("#custom_user_filters_settings");
+const filterOptionsChanged = (e: Event) => {
+    const filterElem = (e.target as HTMLSelectElement).closest("#custom_user_filters_settings");
     const selected = (<HTMLSelectElement>document.getElementById("filtered_users")).options.selectedIndex;
     const removeBtn = filterElem.querySelector("#remove_user_filter_btn");
     if (selected > -1) removeBtn.removeAttribute("disabled");
@@ -311,17 +335,17 @@ const filterOptionsChanged = (e) => {
 
 const getUserFilters = async () => {
     // serialize user filters to extension storage
-    const usersLst = <HTMLSelectElement>document.getElementById("filtered_users");
+    const usersLst = document.getElementById("filtered_users") as HTMLSelectElement;
     const users = [...usersLst.options].map((x) => x.text);
     const fullpostHider = <HTMLInputElement>document.getElementById("cuf_hide_fullposts");
-    if (fullpostHider) await settings.setSetting(fullpostHider.id, fullpostHider.checked);
-    return await settings.setSetting("user_filters", users);
+    if (fullpostHider) await setSetting(fullpostHider.id, fullpostHider.checked);
+    return await setSetting("user_filters", users);
 };
 
-const addUserFilter = async (e) => {
-    const username = <HTMLInputElement>document.getElementById("new_user_filter_text");
+const addUserFilter = async (e: MouseEvent) => {
+    const username = document.getElementById("new_user_filter_text") as HTMLInputElement;
     const usersLst = document.getElementById("filtered_users");
-    const filtersHas = await settings.filtersContains(username.value);
+    const filtersHas = await filtersContains(username.value);
     if (filtersHas) {
         alert("Filters cannot contain duplicates!");
         username.value = "";
@@ -335,8 +359,8 @@ const addUserFilter = async (e) => {
     await getUserFilters();
 };
 
-const removeUserFilter = async (e) => {
-    const selectElem = <HTMLSelectElement>document.getElementById("filtered_users");
+const removeUserFilter = async () => {
+    const selectElem = document.getElementById("filtered_users") as HTMLSelectElement;
     const removeBtnElem = document.getElementById("remove_user_filter_btn");
     const selectedOptions = [...selectElem.selectedOptions];
     for (const option of selectedOptions || []) option.parentNode.removeChild(option);
@@ -365,14 +389,14 @@ const getEnabledScripts = async () => {
             enabled.push(_checkbox.id);
         } else if (elementMatches(checkbox, ".suboption")) if (_checkbox.checked) enabledSuboptions.push(_checkbox.id);
     }
-    await settings.setSetting("enabled_scripts", enabled);
-    await settings.setSetting("enabled_suboptions", enabledSuboptions);
+    await setSetting("enabled_scripts", enabled);
+    await setSetting("enabled_suboptions", enabledSuboptions);
     return enabled;
 };
 
 const loadOptions = async () => {
     // deserialize extension storage to options state
-    const scripts = await settings.getEnabled();
+    const scripts = await getEnabled();
     const checkboxes = [
         ...document.querySelectorAll(`
         input[type='checkbox'].script_check,
@@ -381,14 +405,14 @@ const loadOptions = async () => {
     ];
     for (const script of scripts) {
         for (const checkbox of checkboxes) {
-            const _checkbox = <HTMLInputElement>checkbox;
+            const _checkbox = checkbox as HTMLInputElement;
             if (elementMatches(checkbox, ".script_check")) {
                 if (_checkbox.id === script) _checkbox.checked = true;
                 const settingsChild = document.querySelector(`div#${_checkbox.id}_settings`);
                 if (_checkbox.checked && settingsChild) settingsChild.classList.remove("hidden");
                 else if (!_checkbox.checked && settingsChild) settingsChild.classList.add("hidden");
             } else if (elementMatches(_checkbox, ".suboption")) {
-                const option = await settings.getEnabledSuboptions(_checkbox.id);
+                const option = await getEnabledSuboptions(_checkbox.id);
                 if (option) _checkbox.checked = true;
             }
         }
@@ -399,16 +423,15 @@ const loadOptions = async () => {
     }
 };
 
-const saveOptions = async (e) => {
-    if (e && e.target.id !== "clear_settings") {
+const saveOptions = async (e: MouseEvent) => {
+    if (e && (e.target as HTMLButtonElement).id !== "clear_settings") {
         await getEnabledScripts();
         await loadOptions();
     }
 };
 
-const clearSettings = (e) =>
-    settings
-        .resetSettings()
+const clearSettings = (e: MouseEvent) =>
+    resetSettings()
         .then(loadOptions)
         .then(saveOptions(e))
         .then(() => {
@@ -420,9 +443,17 @@ const clearSettings = (e) =>
 /*
  *  Support import/export of the settings store
  */
+const objConditionalFilter = (disallowed: any[], obj: object) => {
+    return Object.keys(obj)
+        .filter((k) => !disallowed.includes(k))
+        .reduce((o, k) => {
+            return { ...o, [k]: obj[k] };
+        }, {});
+};
+
 const exportSettings = (settingsField) => {
     if (settingsField) {
-        settings.getSettings().then(async (settings) => {
+        getSettings().then(async (settings) => {
             // strip unnecessary cached keys
             const disallowed = [
                 "highlight_groups",
@@ -432,7 +463,7 @@ const exportSettings = (settingsField) => {
                 "last_highlight_time",
                 "new_comment_highlighter_last_id",
             ];
-            const sanitizedGroups = settings.highlight_groups.filter((x) => !x.built_in) || [];
+            const sanitizedGroups = settings.highlight_groups.filter((x: HighlightGroup) => !x.built_in) || [];
             const sanitizedSettings = objConditionalFilter(disallowed, settings);
             const exportable =
                 sanitizedGroups.length > 0
@@ -453,7 +484,7 @@ const exportSettings = (settingsField) => {
 const importSettings = (settingsField) => {
     try {
         const parsedSettings = settingsField && JSON.parse(superTrim(settingsField.value));
-        const defaults = { ...settings.DefaultSettings };
+        const defaults = { ...DefaultSettings };
         // combine default and parsed highlight groups intelligently
         const reducedGroups = parsedSettings.highlight_groups
             ? parsedSettings.highlight_groups.reduce((acc, v) => {
@@ -465,11 +496,8 @@ const importSettings = (settingsField) => {
             : defaults.highlight_groups;
         parsedSettings.highlight_groups = reducedGroups;
         const combinedSettings = { ...defaults, ...parsedSettings };
-        if (combinedSettings) {
-            settings
-                .resetSettings()
-                .then(settings.setSettings(combinedSettings).then(() => alert("Successfully imported settings!")));
-        }
+        if (combinedSettings)
+            resetSettings().then(setSettings(combinedSettings).then(() => alert("Successfully imported settings!")));
     } catch (e) {
         console.log(e);
         alert("Something went wrong when importing, check the console!");
@@ -477,8 +505,8 @@ const importSettings = (settingsField) => {
 };
 
 const handleImportExportField = () => {
-    const field = <HTMLInputElement>document.getElementById("import_export_field");
-    const importExportBtn = document.getElementById("import_export_btn");
+    const field = document.getElementById("import_export_field") as HTMLInputElement;
+    const importExportBtn = document.getElementById("import_export_btn") as HTMLButtonElement;
     const result = parseSettingsString(field.value);
     if (result) importExportBtn.textContent = "Import Settings";
     else importExportBtn.textContent = "Export To Clipboard";
@@ -486,7 +514,7 @@ const handleImportExportField = () => {
 
 const handleImportExportSettings = () => {
     const field_limit = 5 * 1000 * 1000;
-    const importExportField = <HTMLInputElement>document.getElementById("import_export_field");
+    const importExportField = document.getElementById("import_export_field") as HTMLInputElement;
     const field_val = importExportField && importExportField.value;
     if (field_val && field_val.length > field_limit) {
         // truncate to 5 MiB (max of extension storage)
@@ -498,11 +526,11 @@ const handleImportExportSettings = () => {
     else if (importExportField) exportSettings(importExportField);
 };
 
-const parseSettingsString = (string) => {
+const parseSettingsString = (input: string) => {
     // rudimentary way of checking if a settings string is a valid JSON object
     try {
-        const parsed = string && string.length > 0 && JSON.parse(superTrim(string));
-        if (parsed && objContainsProperty("version", parsed)) return string;
+        const parsed = input && input.length > 0 && JSON.parse(superTrim(input));
+        if (parsed && objContainsProperty("version", parsed)) return input;
         return false;
     } catch (e) {
         alert("Input is not a valid settings string!");
