@@ -31,7 +31,7 @@ const ChromeShack = {
 
     falseTagEvent: false,
 
-    debugEvents: true,
+    debugEvents: false,
 
     install() {
         // use MutationObserver instead of Mutation Events for a massive performance boost
